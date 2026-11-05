@@ -49,7 +49,8 @@ namespace AvaloniaEdit.Tests
         {
             T result = default;
             ExceptionDispatchInfo error = null;
-            using var done = new ManualResetEventSlim();
+            // Not disposed: after a timeout the action may still be running and set it later.
+            var done = new ManualResetEventSlim();
             _work.Add(() =>
             {
                 try
@@ -90,8 +91,9 @@ namespace AvaloniaEdit.Tests
         public void Dispose()
         {
             _work.CompleteAdding();
-            _thread.Join(Timeout);
-            _work.Dispose();
+            // A thread stuck in an action still reads the queue, so leave it to the GC.
+            if (_thread.Join(Timeout))
+                _work.Dispose();
         }
     }
 }
