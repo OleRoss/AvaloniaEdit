@@ -200,7 +200,7 @@ namespace AvaloniaEdit.TextMate
             // Post is fire-and-forget - avoids the Task allocation that
             // InvokeAsync incurs. DispatcherPriority.Default is the default
             // for Post, matching the original InvokeAsync behavior
-            Dispatcher.UIThread.Post(TokenizeViewPortCore, DispatcherPriority.Default);
+            _textView.Dispatcher.Post(TokenizeViewPortCore, DispatcherPriority.Default);
         }
 
         /// <summary>

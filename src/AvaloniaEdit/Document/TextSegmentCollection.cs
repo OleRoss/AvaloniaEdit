@@ -24,7 +24,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using AvaloniaEdit.Utils;
-using Avalonia.Threading;
 
 namespace AvaloniaEdit.Document
 {
@@ -91,7 +90,7 @@ namespace AvaloniaEdit.Document
             if (textDocument == null)
                 throw new ArgumentNullException(nameof(textDocument));
 
-            Dispatcher.UIThread.VerifyAccess();
+            textDocument.VerifyAccess();
             _isConnectedToDocument = true;
             TextDocumentWeakEventManager.Changed.AddHandler(textDocument, OnDocumentChanged);
         }

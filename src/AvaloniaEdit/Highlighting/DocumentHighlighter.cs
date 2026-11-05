@@ -22,7 +22,6 @@ using System.Diagnostics;
 using System.Linq;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Utils;
-using Avalonia.Threading;
 using SpanStack = System.Collections.Immutable.ImmutableStack<AvaloniaEdit.Highlighting.HighlightingSpan>;
 
 namespace AvaloniaEdit.Highlighting
@@ -61,7 +60,7 @@ namespace AvaloniaEdit.Highlighting
             Document = document ?? throw new ArgumentNullException(nameof(document));
             _definition = definition ?? throw new ArgumentNullException(nameof(definition));
             _engine = new HighlightingEngine(definition.MainRuleSet);
-            Dispatcher.UIThread.VerifyAccess();
+            document.VerifyAccess();
             _weakLineTracker = WeakLineTracker.Register(document, this);
             InvalidateSpanStacks();
         }

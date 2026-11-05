@@ -1,6 +1,5 @@
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Rendering;
 using System;
@@ -473,7 +472,7 @@ namespace AvaloniaEdit.TextMate
             // This eliminates the race between the Post() call (background thread) and
             // the lambda execution (UI thread), where SetModel or Dispose could have
             // nulled _document or changed the visible line range.
-            Dispatcher.UIThread.Post(() =>
+            _textView.Dispatcher.Post(() =>
             {
                 // Guard against disposal that occurred between Post() and execution
                 if (Volatile.Read(ref _isDisposed))

@@ -848,7 +848,7 @@ namespace AvaloniaEdit.Rendering
         /// It is not allowed to call this method during the construction of a visual line.</exception>
         public void EnsureVisualLines()
         {
-            Dispatcher.UIThread.VerifyAccess();
+            VerifyAccess();
             if (_inMeasure)
                 throw new InvalidOperationException("The visual line build process is already running! Cannot EnsureVisualLines() during Measure!");
             if (!VisualLinesValid)
@@ -1655,7 +1655,7 @@ namespace AvaloniaEdit.Rendering
             if (!_invalidCursor)
             {
                 _invalidCursor = true;
-                Dispatcher.UIThread.InvokeAsync(
+                Dispatcher.CurrentDispatcher.InvokeAsync(
                     delegate
                     {
                         _invalidCursor = false;
