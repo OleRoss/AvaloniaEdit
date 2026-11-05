@@ -159,7 +159,7 @@ namespace AvaloniaEdit.Document
 			}
 		}	
 
-        private void VerifyAccess()
+        internal void VerifyAccess()
         {
             if(Thread.CurrentThread != ownerThread)
             {

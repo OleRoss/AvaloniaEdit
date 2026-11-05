@@ -23,7 +23,6 @@ using AvaloniaEdit.Document;
 using AvaloniaEdit.Rendering;
 using AvaloniaEdit.Utils;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace AvaloniaEdit.Editing
 {
@@ -511,7 +510,7 @@ namespace AvaloniaEdit.Editing
             if (!_showScheduled)
             {
                 _showScheduled = true;
-                Dispatcher.UIThread.Post(ShowInternal);
+                _textArea.Dispatcher.Post(ShowInternal);
             }
         }
 

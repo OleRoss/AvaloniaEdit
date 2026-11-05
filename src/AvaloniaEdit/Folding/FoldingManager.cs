@@ -23,7 +23,6 @@ using System.Linq;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using AvaloniaEdit.Rendering;
-using Avalonia.Threading;
 
 namespace AvaloniaEdit.Folding
 {
@@ -46,7 +45,7 @@ namespace AvaloniaEdit.Folding
         {
             Document = document ?? throw new ArgumentNullException(nameof(document));
             _foldings = new TextSegmentCollection<FoldingSection>();
-            Dispatcher.UIThread.VerifyAccess();
+            document.VerifyAccess();
             TextDocumentWeakEventManager.Changed.AddHandler(document, OnDocumentChanged);
         }
         #endregion
@@ -156,7 +155,7 @@ namespace AvaloniaEdit.Folding
         /// </summary>
         public void Clear()
         {
-            Dispatcher.UIThread.VerifyAccess();
+            Document.VerifyAccess();
             foreach (var s in _foldings)
                 s.IsFolded = false;
             _foldings.Clear();

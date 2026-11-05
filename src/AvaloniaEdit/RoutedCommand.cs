@@ -9,7 +9,8 @@ namespace AvaloniaEdit
 {
     public class RoutedCommand : ICommand
     {
-        private static IInputElement _inputElement;
+        // The last focused element, per UI thread.
+        [ThreadStatic] private static IInputElement _inputElement;
 
         public string Name { get; }
         public KeyGesture Gesture { get; }
