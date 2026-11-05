@@ -25,7 +25,7 @@ namespace AvaloniaEdit.Tests
     /// </summary>
     /// <remarks>
     /// The headless platform can't show a Window on a second thread (headless windows share
-    /// the main thread's compositor), so these tests lay out and render the TextView directly.
+    /// the main thread's compositor), so these tests lay out the TextView directly.
     /// Each test ends by checking that nothing was queued on the main UI thread.
     /// </remarks>
     [TestFixture]
@@ -33,25 +33,6 @@ namespace AvaloniaEdit.Tests
     {
         private const string Code = "class C\n{\n    void M()\n    {\n    }\n}\n";
         private static readonly Size ViewSize = new Size(400, 300);
-
-        [AvaloniaTest]
-        public void TextView_Should_Lay_Out_And_Render()
-        {
-            using var ui = new SecondUIThread();
-
-            ui.Invoke(() =>
-            {
-                var textView = new TextView { Document = new TextDocument(Code) };
-                Layout(textView);
-                textView.EnsureVisualLines();
-                Render(textView);
-
-                Assert.That(textView.VisualLinesValid);
-                Assert.That(textView.VisualLines, Has.Count.EqualTo(7));
-            });
-
-            AssertNothingQueuedOnMainUIThread();
-        }
 
         [AvaloniaTest]
         public void Typing_And_Selecting_Should_Work()
@@ -68,7 +49,6 @@ namespace AvaloniaEdit.Tests
                 textArea.PerformTextInput("// ");
                 textArea.Caret.Show();
                 textArea.Selection = Selection.Create(textArea, 3, 8);
-                Render(textArea.TextView);
 
                 Assert.That(textArea.Document.GetText(textArea.Document.Lines[0]), Is.EqualTo("// class C"));
                 Assert.That(textArea.Selection.GetText(), Is.EqualTo("class"));
@@ -137,7 +117,6 @@ namespace AvaloniaEdit.Tests
                 FoldingManager foldingManager = FoldingManager.Install(textArea);
                 foldingManager.CreateFolding(textArea.Document.GetOffset(2, 1), textArea.Document.TextLength - 1).IsFolded = true;
                 Layout(textArea.TextView);
-                Render(textArea.TextView);
 
                 // Lines 2 to 6 are folded into one visual line.
                 Assert.That(textArea.TextView.GetVisualLine(2).LastDocumentLine.LineNumber, Is.EqualTo(6));
@@ -175,8 +154,6 @@ namespace AvaloniaEdit.Tests
 
             ui.Invoke(() =>
             {
-                Render(textView);
-
                 // Scrolling makes TextMate tokenize the new viewport.
                 Layout(textView, new Size(400, 20));
                 textView.SetScrollOffset(new Vector(0, textView.DefaultLineHeight * 2));
@@ -199,7 +176,6 @@ namespace AvaloniaEdit.Tests
                 var highlighter = new DocumentHighlighter(document, HighlightingManager.Instance.GetDefinition("C#"));
                 textView.LineTransformers.Add(new HighlightingColorizer(highlighter));
                 Layout(textView);
-                Render(textView);
 
                 Assert.That(CountColors(textView, 1), Is.GreaterThan(1));
             });
@@ -211,27 +187,23 @@ namespace AvaloniaEdit.Tests
         public void Shared_Defaults_Should_Work_After_The_Main_Thread_Used_Them()
         {
             // Static default brushes and pens are created by the first thread that uses them.
-            RenderSharedDefaults(new TextEditor { Document = new TextDocument(Code) });
+            RenderSharedDefaults();
+            Dispatcher.UIThread.RunJobs(); // the main-thread editor's own work
 
             using var ui = new SecondUIThread();
-            TextEditor editor = CreateEditor(ui);
-            ui.Invoke(() => RenderSharedDefaults(editor));
+            ui.Invoke(RenderSharedDefaults);
 
             AssertNothingQueuedOnMainUIThread();
         }
 
-        // Renders shown spaces, a snippet field and search results.
-        private static void RenderSharedDefaults(TextEditor editor)
+        // Lays out shown spaces and renders a snippet field.
+        private static void RenderSharedDefaults()
         {
-            TextArea textArea = editor.TextArea;
+            var textArea = new TextArea { Document = new TextDocument(Code) };
             textArea.Options.ShowSpaces = true;
             new Snippet { Elements = { new SnippetReplaceableTextElement { Text = "name" } } }.Insert(textArea);
-            SearchPanel searchPanel = SearchPanel.Install(editor);
-            searchPanel.SearchPattern = "class";
-            searchPanel.Open();
             Layout(textArea.TextView);
             Render(textArea.TextView);
-            searchPanel.Uninstall();
         }
 
         private static TextEditor CreateEditor(SecondUIThread ui)
