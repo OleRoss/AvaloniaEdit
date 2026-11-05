@@ -1,0 +1,92 @@
+name: Preview packages
+
+on:
+    pull_request_target:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    packages: write
+    pull-requests: write
+
+jobs:
+    publish-preview:
+        # pull_request_target runs with write access, so only build pull requests from this repository.
+        if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}
+                  submodules: recursive
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  global-json-file: global.json
+                  source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+              env:
+                  NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Compute preview version
+              shell: bash
+              run: |
+                  base_version="$(python3 - <<'PY'
+                  import json
+                  import re
+                  import urllib.request
+
+                  with urllib.request.urlopen("https://api.nuget.org/v3-flatcontainer/avalonia.avaloniaedit/index.json") as response:
+                      data = json.load(response)
+
+                  versions = [
+                      version
+                      for version in data["versions"]
+                      if re.fullmatch(r"\d+\.\d+\.\d+", version)
+                  ]
+
+                  print(max(versions, key=lambda version: tuple(map(int, version.split(".")))))
+                  PY
+                  )"
+
+                  IFS='.' read -r major minor patch <<< "$base_version"
+                  preview_version="${major}.${minor}.999-ci${{ github.run_number }}-alpha"
+
+                  echo "PREVIEW_VERSION=$preview_version" >> "$GITHUB_ENV"
+                  echo "Preview version: $preview_version"
+
+            - name: Pack preview packages
+              shell: bash
+              run: |
+                  rm -rf artifacts
+                  mkdir -p artifacts
+
+                  for project in src/AvaloniaEdit/AvaloniaEdit.csproj src/AvaloniaEdit.TextMate/AvaloniaEdit.TextMate.csproj; do
+                      dotnet pack "$project" \
+                          --configuration Release \
+                          --output artifacts \
+                          -p:PackageVersion="$PREVIEW_VERSION" \
+                          -p:Version="$PREVIEW_VERSION"
+                  done
+
+                  test -f "artifacts/Avalonia.AvaloniaEdit.$PREVIEW_VERSION.nupkg"
+                  test -f "artifacts/AvaloniaEdit.TextMate.$PREVIEW_VERSION.nupkg"
+
+            - name: Push preview packages
+              run: dotnet nuget push "artifacts/*.nupkg" --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --api-key "${{ secrets.GITHUB_TOKEN }}" --skip-duplicate
+
+            - name: Comment preview package version
+              if: github.event_name == 'pull_request_target'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+              run: |
+                  cat > preview-package-comment.md <<EOF
+                  You can test this PR using package version \`$PREVIEW_VERSION\`.
+
+                  Feed: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+                  Packages: \`Avalonia.AvaloniaEdit\`, \`AvaloniaEdit.TextMate\`
+                  EOF
+
+                  gh pr comment "$PR_URL" --edit-last --create-if-none --body-file preview-package-comment.md
