@@ -1,8 +1,4 @@
-using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Runtime.ExceptionServices;
-using System.Threading;
 using Avalonia;
 using Avalonia.Headless.NUnit;
 using Avalonia.Media;
@@ -18,156 +14,228 @@ using AvaloniaEdit.Snippets;
 using AvaloniaEdit.TextMate;
 using NUnit.Framework;
 using TextMateSharp.Grammars;
-using Assert = NUnit.Framework.Legacy.ClassicAssert;
 using Snippet = AvaloniaEdit.Snippets.Snippet;
 
 namespace AvaloniaEdit.Tests
 {
-    // An editor created on a thread with its own dispatcher must only use that dispatcher.
-    // The headless platform cannot host a Window on a second thread (all headless windows
-    // share the main thread's compositor), so these tests lay out and render the TextView
-    // directly instead of showing a window.
+    /// <summary>
+    /// An editor created on a second UI thread must use that thread's dispatcher, not
+    /// <see cref="Dispatcher.UIThread"/>.
+    /// </summary>
+    /// <remarks>
+    /// The headless platform can't show a Window on a second thread (headless windows share
+    /// the main thread's compositor), so these tests lay out and render the TextView directly.
+    /// Each test ends by checking that nothing was queued on the main UI thread.
+    /// </remarks>
     [TestFixture]
     internal class SecondUIThreadTests
     {
         private const string Code = "class C\n{\n    void M()\n    {\n    }\n}\n";
+        private static readonly Size ViewSize = new Size(400, 300);
 
         [AvaloniaTest]
-        public void TextEditor_Should_Work_On_A_Second_UI_Thread()
+        public void TextView_Should_Lay_Out_And_Render()
         {
-            TextEditor editor = null;
+            using var ui = new SecondUIThread();
 
-            RunOnSecondUIThread(
-                // Avalonia's binding engine posts the first value of the binding that
-                // TextEditor sets up for TextArea.Background to the main UI thread, so the
-                // main queue is drained after construction. The final check therefore covers
-                // only work queued after the TextEditor constructor.
-                create: () => editor = new TextEditor { Document = new TextDocument(Code) },
-                use: dispatcher =>
-                {
-                    TextArea textArea = editor.TextArea;
-                    TextView textView = textArea.TextView;
-                    textArea.ReadOnlySectionProvider = new TextSegmentReadOnlySectionProvider<TextSegment>(editor.Document);
-                    Layout(textView, 300);
-                    Assert.IsTrue(textView.VisualLinesValid);
-                    Render(textView);
+            ui.Invoke(() =>
+            {
+                var textView = new TextView { Document = new TextDocument(Code) };
+                Layout(textView);
+                textView.EnsureVisualLines();
+                Render(textView);
 
-                    textArea.Caret.Offset = 0;
-                    textArea.PerformTextInput("// ");
-                    textArea.Caret.Show();
-                    Assert.AreEqual("// class C", editor.Document.GetText(editor.Document.Lines[0]));
-
-                    textArea.Selection = Selection.Create(textArea, 3, 8);
-                    Assert.AreEqual("class", textArea.Selection.GetText());
-                    dispatcher.RunJobs();
-
-                    SearchPanel searchPanel = SearchPanel.Install(editor);
-                    ApplicationCommands.Find.Execute(null, textArea);
-                    Assert.AreEqual("class", searchPanel.SearchPattern);
-                    searchPanel.Close();
-                    dispatcher.RunJobs();
-
-                    FoldingManager foldingManager = FoldingManager.Install(textArea);
-                    foldingManager.CreateFolding(editor.Document.GetOffset(2, 1), editor.Document.TextLength - 1).IsFolded = true;
-                    Layout(textView, 300);
-                    Assert.AreEqual(2, textView.VisualLines.Count(l => l.FirstDocumentLine.LineNumber <= 2));
-                    Render(textView);
-
-                    var registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-                    var textMate = editor.InstallTextMate(registryOptions);
-                    textMate.SetGrammar(registryOptions.GetScopeByLanguageId("csharp"));
-                    foldingManager.Clear();
-
-                    // TextMate tokenizes on a worker thread and posts the redraw to the
-                    // editor's dispatcher. Pump this thread's dispatcher until it arrives.
-                    var stopwatch = Stopwatch.StartNew();
-                    while (CountForegrounds(textView, 3) < 2)
-                    {
-                        Assert.Less(stopwatch.Elapsed.TotalSeconds, 10, "TextMate highlighting never reached the editor.");
-                        Thread.Sleep(10);
-                        dispatcher.RunJobs();
-                        Layout(textView, 300);
-                    }
-                    Render(textView);
-
-                    // Scrolling makes TextMate tokenize the new viewport.
-                    Layout(textView, 20);
-                    textView.SetScrollOffset(new Vector(0, textView.DefaultLineHeight * 2));
-                    dispatcher.RunJobs();
-                    Render(textView);
-
-                    textMate.Dispose();
-                    FoldingManager.Uninstall(foldingManager);
-                    dispatcher.RunJobs();
-                });
+                Assert.That(textView.VisualLinesValid);
+                Assert.That(textView.VisualLines, Has.Count.EqualTo(7));
+            });
 
             AssertNothingQueuedOnMainUIThread();
         }
 
         [AvaloniaTest]
-        public void Highlighted_TextView_Should_Work_On_A_Second_UI_Thread()
+        public void Typing_And_Selecting_Should_Work()
         {
-            RunOnSecondUIThread(
-                create: () => { },
-                use: dispatcher =>
-                {
-                    var document = new TextDocument(Code);
-                    var textView = new TextView { Document = document };
-                    var highlighter = new DocumentHighlighter(document, HighlightingManager.Instance.GetDefinition("C#"));
-                    textView.LineTransformers.Add(new HighlightingColorizer(highlighter));
-                    Layout(textView, 300);
-                    Assert.IsTrue(textView.VisualLinesValid);
-                    Render(textView);
-                    dispatcher.RunJobs();
-                });
+            using var ui = new SecondUIThread();
+
+            ui.Invoke(() =>
+            {
+                var textArea = new TextArea { Document = new TextDocument(Code) };
+                textArea.ReadOnlySectionProvider = new TextSegmentReadOnlySectionProvider<TextSegment>(textArea.Document);
+                Layout(textArea.TextView);
+
+                textArea.Caret.Offset = 0;
+                textArea.PerformTextInput("// ");
+                textArea.Caret.Show();
+                textArea.Selection = Selection.Create(textArea, 3, 8);
+                Render(textArea.TextView);
+
+                Assert.That(textArea.Document.GetText(textArea.Document.Lines[0]), Is.EqualTo("// class C"));
+                Assert.That(textArea.Selection.GetText(), Is.EqualTo("class"));
+            });
 
             AssertNothingQueuedOnMainUIThread();
         }
 
         [AvaloniaTest]
-        public void Shared_Defaults_Should_Work_On_A_Second_UI_Thread()
+        public void Find_Command_Should_Search_For_The_Selection()
         {
-            // Static defaults are created by whichever thread uses them first.
-            RenderSharedDefaults(new TextEditor());
+            using var ui = new SecondUIThread();
+            TextEditor editor = CreateEditor(ui);
 
-            TextEditor editor = null;
-            RunOnSecondUIThread(create: () => editor = new TextEditor(), use: _ => RenderSharedDefaults(editor));
+            ui.Invoke(() =>
+            {
+                SearchPanel searchPanel = SearchPanel.Install(editor);
+                editor.Select(0, 5);
+
+                ApplicationCommands.Find.Execute(null, editor.TextArea);
+
+                Assert.That(searchPanel.SearchPattern, Is.EqualTo("class"));
+            });
+
+            AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void Folding_Should_Hide_Folded_Lines()
+        {
+            using var ui = new SecondUIThread();
+
+            ui.Invoke(() =>
+            {
+                var textArea = new TextArea { Document = new TextDocument(Code) };
+                FoldingManager foldingManager = FoldingManager.Install(textArea);
+                foldingManager.CreateFolding(textArea.Document.GetOffset(2, 1), textArea.Document.TextLength - 1).IsFolded = true;
+                Layout(textArea.TextView);
+                Render(textArea.TextView);
+
+                // Lines 2 to 6 are folded into one visual line.
+                Assert.That(textArea.TextView.GetVisualLine(2).LastDocumentLine.LineNumber, Is.EqualTo(6));
+
+                foldingManager.Clear();
+                FoldingManager.Uninstall(foldingManager);
+            });
+
+            AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void TextMate_Should_Highlight()
+        {
+            using var ui = new SecondUIThread();
+            TextEditor editor = CreateEditor(ui);
+            TextView textView = editor.TextArea.TextView;
+            AvaloniaEdit.TextMate.TextMate.Installation textMate = null;
+
+            ui.Invoke(() =>
+            {
+                var registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+                textMate = editor.InstallTextMate(registryOptions);
+                textMate.SetGrammar(registryOptions.GetScopeByLanguageId("csharp"));
+                Layout(textView);
+            });
+
+            // TextMate tokenizes on a worker thread, then posts a redraw to the editor's
+            // dispatcher. "void" and "M" on line 3 get different colors once it arrives.
+            ui.WaitUntil(() =>
+            {
+                Layout(textView);
+                return CountColors(textView, 3) > 1;
+            }, "TextMate highlighting never reached the editor.");
+
+            ui.Invoke(() =>
+            {
+                Render(textView);
+
+                // Scrolling makes TextMate tokenize the new viewport.
+                Layout(textView, new Size(400, 20));
+                textView.SetScrollOffset(new Vector(0, textView.DefaultLineHeight * 2));
+
+                textMate.Dispose();
+            });
+
+            AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void DocumentHighlighter_Should_Highlight()
+        {
+            using var ui = new SecondUIThread();
+
+            ui.Invoke(() =>
+            {
+                var document = new TextDocument(Code);
+                var textView = new TextView { Document = document };
+                var highlighter = new DocumentHighlighter(document, HighlightingManager.Instance.GetDefinition("C#"));
+                textView.LineTransformers.Add(new HighlightingColorizer(highlighter));
+                Layout(textView);
+                Render(textView);
+
+                Assert.That(CountColors(textView, 1), Is.GreaterThan(1));
+            });
+
+            AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void Shared_Defaults_Should_Work_After_The_Main_Thread_Used_Them()
+        {
+            // Static default brushes and pens are created by the first thread that uses them.
+            RenderSharedDefaults(new TextEditor { Document = new TextDocument(Code) });
+
+            using var ui = new SecondUIThread();
+            TextEditor editor = CreateEditor(ui);
+            ui.Invoke(() => RenderSharedDefaults(editor));
+
+            AssertNothingQueuedOnMainUIThread();
         }
 
         // Renders shown spaces, a snippet field and search results.
         private static void RenderSharedDefaults(TextEditor editor)
         {
             TextArea textArea = editor.TextArea;
-            textArea.Document = new TextDocument("a b\n");
             textArea.Options.ShowSpaces = true;
             new Snippet { Elements = { new SnippetReplaceableTextElement { Text = "name" } } }.Insert(textArea);
             SearchPanel searchPanel = SearchPanel.Install(editor);
-            searchPanel.SearchPattern = "b";
+            searchPanel.SearchPattern = "class";
             searchPanel.Open();
-            Layout(textArea.TextView, 300);
+            Layout(textArea.TextView);
             Render(textArea.TextView);
             searchPanel.Uninstall();
         }
 
+        private static TextEditor CreateEditor(SecondUIThread ui)
+        {
+            TextEditor editor = ui.Invoke(() => new TextEditor { Document = new TextDocument(Code) });
+
+            // TextEditor binds TextArea.Background to its own Background. Avalonia posts the
+            // binding's first value to Dispatcher.UIThread, whichever thread made the binding.
+            // Run that job now, so the final check only sees work queued later.
+            Dispatcher.UIThread.RunJobs();
+
+            return editor;
+        }
+
         private static void AssertNothingQueuedOnMainUIThread()
         {
-            Assert.IsFalse(Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.SystemIdle),
+            Assert.That(Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.SystemIdle), Is.False,
                 "The second-thread editor queued work on the main UI thread.");
         }
 
-        private static void Layout(TextView textView, double height)
+        private static void Layout(TextView textView) => Layout(textView, ViewSize);
+
+        private static void Layout(TextView textView, Size size)
         {
-            textView.Measure(new Size(400, height));
-            textView.Arrange(new Rect(0, 0, 400, height));
+            textView.Measure(size);
+            textView.Arrange(new Rect(size));
         }
 
         private static void Render(Visual visual)
         {
-            using var bitmap = new RenderTargetBitmap(new PixelSize(400, 300));
+            using var bitmap = new RenderTargetBitmap(new PixelSize((int)ViewSize.Width, (int)ViewSize.Height));
             bitmap.Render(visual);
         }
 
-        private static int CountForegrounds(TextView textView, int lineNumber)
+        private static int CountColors(TextView textView, int lineNumber)
         {
             VisualLine line = textView.GetVisualLine(lineNumber);
             if (line == null)
@@ -176,44 +244,6 @@ namespace AvaloniaEdit.Tests
                 .Select(e => (e.TextRunProperties.ForegroundBrush as ISolidColorBrush)?.Color)
                 .Distinct()
                 .Count();
-        }
-
-        // Runs create, then use, on a new thread with its own dispatcher. Between the two,
-        // the main UI thread runs its queued jobs.
-        private static void RunOnSecondUIThread(Action create, Action<Dispatcher> use)
-        {
-            Exception error = null;
-            using var created = new ManualResetEventSlim();
-            using var drained = new ManualResetEventSlim();
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
-                    Assert.AreNotSame(Dispatcher.UIThread, dispatcher);
-                    try
-                    {
-                        create();
-                    }
-                    finally
-                    {
-                        created.Set();
-                    }
-                    drained.Wait();
-                    use(dispatcher);
-                }
-                catch (Exception ex)
-                {
-                    error = ex;
-                }
-            });
-            thread.Start();
-            Assert.IsTrue(created.Wait(TimeSpan.FromSeconds(30)), "The second UI thread did not start.");
-            Dispatcher.UIThread.RunJobs();
-            drained.Set();
-            Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(30)), "The second UI thread did not finish.");
-            if (error != null)
-                ExceptionDispatchInfo.Throw(error);
         }
     }
 }
