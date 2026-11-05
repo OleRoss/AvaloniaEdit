@@ -42,18 +42,22 @@ namespace AvaloniaEdit.Editing
         {
             var handler = new TextAreaInputHandler(textArea);
             handler.CommandBindings.AddRange(CommandBindings);
-            handler.KeyBindings.AddRange(KeyBindings);
+            handler.KeyBindings.AddRange(_keyBindings ??= KeyGestures.ConvertAll(
+                g => TextAreaDefaultInputHandler.CreateKeyBinding(g.Command, g.Gesture)));
             return handler;
         }
 
         private static readonly List<RoutedCommandBinding> CommandBindings = new List<RoutedCommandBinding>();
-        private static readonly List<KeyBinding> KeyBindings = new List<KeyBinding>();
+        private static readonly List<(RoutedCommand Command, KeyGesture Gesture)> KeyGestures = new List<(RoutedCommand Command, KeyGesture Gesture)>();
+        // KeyBinding is an AvaloniaObject owned by the thread that creates it, so each UI
+        // thread gets its own instances. Editors on the same thread share them.
+        [ThreadStatic] private static List<KeyBinding> _keyBindings;
 
         private static void AddBinding(RoutedCommand command, KeyModifiers modifiers, Key key,
             EventHandler<ExecutedRoutedEventArgs> handler)
         {
             CommandBindings.Add(new RoutedCommandBinding(command, handler));
-            KeyBindings.Add(TextAreaDefaultInputHandler.CreateKeyBinding(command, modifiers, key));
+            KeyGestures.Add((command, new KeyGesture(key, modifiers)));
         }
 
         private static void AddBinding(RoutedCommand command, EventHandler<ExecutedRoutedEventArgs> handler, EventHandler<CanExecuteRoutedEventArgs> canExecuteHandler = null)
@@ -67,9 +71,8 @@ namespace AvaloniaEdit.Editing
             AddBinding(EditingCommands.DeleteNextWord, KeyModifiers.Control, Key.Delete,
                 OnDelete(CaretMovementType.WordRight));
             AddBinding(EditingCommands.Backspace, KeyModifiers.None, Key.Back, OnDelete(CaretMovementType.Backspace));
-            KeyBindings.Add(
-                TextAreaDefaultInputHandler.CreateKeyBinding(EditingCommands.Backspace, KeyModifiers.Shift,
-                    Key.Back)); // make Shift-Backspace do the same as plain backspace
+            KeyGestures.Add((EditingCommands.Backspace,
+                new KeyGesture(Key.Back, KeyModifiers.Shift))); // make Shift-Backspace do the same as plain backspace
             AddBinding(EditingCommands.DeletePreviousWord, KeyModifiers.Control, Key.Back,
                 OnDelete(CaretMovementType.WordLeft));
             AddBinding(EditingCommands.EnterParagraphBreak, KeyModifiers.None, Key.Enter, OnEnter);

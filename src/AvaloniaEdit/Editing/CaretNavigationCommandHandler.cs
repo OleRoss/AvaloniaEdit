@@ -56,12 +56,16 @@ namespace AvaloniaEdit.Editing
         {
             var handler = new TextAreaInputHandler(textArea);
             handler.CommandBindings.AddRange(CommandBindings);
-            handler.KeyBindings.AddRange(KeyBindings);
+            handler.KeyBindings.AddRange(_keyBindings ??= KeyGestures.ConvertAll(
+                g => TextAreaDefaultInputHandler.CreateKeyBinding(g.Command, g.Gesture)));
             return handler;
         }
 
         static readonly List<RoutedCommandBinding> CommandBindings = new List<RoutedCommandBinding>();
-        static readonly List<KeyBinding> KeyBindings = new List<KeyBinding>();
+        static readonly List<(RoutedCommand Command, KeyGesture Gesture)> KeyGestures = new List<(RoutedCommand Command, KeyGesture Gesture)>();
+        // KeyBinding is an AvaloniaObject owned by the thread that creates it, so each UI
+        // thread gets its own instances. Editors on the same thread share them.
+        [ThreadStatic] private static List<KeyBinding> _keyBindings;
 
         private static void AddBinding(
             RoutedCommand command,
@@ -87,7 +91,7 @@ namespace AvaloniaEdit.Editing
             EventHandler<CanExecuteRoutedEventArgs> canExecuteHandler = null)
         {
             AddBinding(command, handler, canExecuteHandler);
-            KeyBindings.Add(TextAreaDefaultInputHandler.CreateKeyBinding(command, gesture));
+            KeyGestures.Add((command, gesture));
         }
 
         static CaretNavigationCommandHandler()

@@ -1,6 +1,7 @@
 using System.Linq;
 using Avalonia;
 using Avalonia.Headless.NUnit;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -71,6 +72,36 @@ namespace AvaloniaEdit.Tests
 
                 Assert.That(textArea.Document.GetText(textArea.Document.Lines[0]), Is.EqualTo("// class C"));
                 Assert.That(textArea.Selection.GetText(), Is.EqualTo("class"));
+            });
+
+            AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void Key_Bindings_Should_Work_While_The_Main_Thread_Has_Focus()
+        {
+            // Creates the main thread's default key bindings.
+            var mainTextArea = new TextArea();
+
+            using var ui = new SecondUIThread();
+            TextArea textArea = ui.Invoke(() =>
+            {
+                var t = new TextArea { Document = new TextDocument(Code) };
+                t.Caret.Offset = 0;
+                RaiseGotFocus(t);
+                return t;
+            });
+
+            // Key commands run on the element that last got focus on the same thread.
+            RaiseGotFocus(mainTextArea);
+            Dispatcher.UIThread.RunJobs(); // the main-thread editor's own work
+
+            ui.Invoke(() =>
+            {
+                PressKey(textArea, Key.Right);
+                PressKey(textArea, Key.Back);
+
+                Assert.That(textArea.Document.GetText(textArea.Document.Lines[0]), Is.EqualTo("lass C"));
             });
 
             AssertNothingQueuedOnMainUIThread();
@@ -213,6 +244,17 @@ namespace AvaloniaEdit.Tests
             Dispatcher.UIThread.RunJobs();
 
             return editor;
+        }
+
+        // Without a window, Focus() can't move focus, so raise the event focus would raise.
+        private static void RaiseGotFocus(TextArea textArea)
+        {
+            textArea.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent) { NewFocusedElement = textArea });
+        }
+
+        private static void PressKey(TextArea textArea, Key key)
+        {
+            textArea.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
         }
 
         private static void AssertNothingQueuedOnMainUIThread()
