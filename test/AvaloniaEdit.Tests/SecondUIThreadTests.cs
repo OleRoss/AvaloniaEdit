@@ -14,10 +14,12 @@ using AvaloniaEdit.Folding;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Rendering;
 using AvaloniaEdit.Search;
+using AvaloniaEdit.Snippets;
 using AvaloniaEdit.TextMate;
 using NUnit.Framework;
 using TextMateSharp.Grammars;
 using Assert = NUnit.Framework.Legacy.ClassicAssert;
+using Snippet = AvaloniaEdit.Snippets.Snippet;
 
 namespace AvaloniaEdit.Tests
 {
@@ -36,9 +38,10 @@ namespace AvaloniaEdit.Tests
             TextEditor editor = null;
 
             RunOnSecondUIThread(
-                // Avalonia posts the first value of the binding that TextEditor sets up for
-                // TextArea.Background to the main UI thread. That is Avalonia's binding
-                // engine, not AvaloniaEdit, so it is drained before the editor is used.
+                // Avalonia's binding engine posts the first value of the binding that
+                // TextEditor sets up for TextArea.Background to the main UI thread, so the
+                // main queue is drained after construction. The final check therefore covers
+                // only work queued after the TextEditor constructor.
                 create: () => editor = new TextEditor { Document = new TextDocument(Code) },
                 use: dispatcher =>
                 {
@@ -119,6 +122,31 @@ namespace AvaloniaEdit.Tests
                 });
 
             AssertNothingQueuedOnMainUIThread();
+        }
+
+        [AvaloniaTest]
+        public void Shared_Defaults_Should_Work_On_A_Second_UI_Thread()
+        {
+            // Static defaults are created by whichever thread uses them first.
+            RenderSharedDefaults(new TextEditor());
+
+            TextEditor editor = null;
+            RunOnSecondUIThread(create: () => editor = new TextEditor(), use: _ => RenderSharedDefaults(editor));
+        }
+
+        // Renders shown spaces, a snippet field and search results.
+        private static void RenderSharedDefaults(TextEditor editor)
+        {
+            TextArea textArea = editor.TextArea;
+            textArea.Document = new TextDocument("a b\n");
+            textArea.Options.ShowSpaces = true;
+            new Snippet { Elements = { new SnippetReplaceableTextElement { Text = "name" } } }.Insert(textArea);
+            SearchPanel searchPanel = SearchPanel.Install(editor);
+            searchPanel.SearchPattern = "b";
+            searchPanel.Open();
+            Layout(textArea.TextView, 300);
+            Render(textArea.TextView);
+            searchPanel.Uninstall();
         }
 
         private static void AssertNothingQueuedOnMainUIThread()

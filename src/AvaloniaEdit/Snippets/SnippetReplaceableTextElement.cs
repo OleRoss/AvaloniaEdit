@@ -171,7 +171,7 @@ namespace AvaloniaEdit.Snippets
         private sealed class Renderer : IBackgroundRenderer
         {
             private static readonly IBrush BackgroundBrush = CreateBackgroundBrush();
-            private static readonly Pen ActiveBorderPen = CreateBorderPen();
+            private static readonly IPen ActiveBorderPen = CreateBorderPen();
 
             private static IBrush CreateBackgroundBrush()
             {
@@ -179,9 +179,9 @@ namespace AvaloniaEdit.Snippets
                 return b;
             }
 
-            private static Pen CreateBorderPen()
+            private static IPen CreateBorderPen()
             {
-                var p = new Pen(Brushes.Black, dashStyle: DashStyle.Dot);
+                var p = new Pen(Brushes.Black, dashStyle: DashStyle.Dot).ToImmutable();
                 return p;
             }
 

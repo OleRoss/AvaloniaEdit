@@ -30,6 +30,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using AvaloniaEdit.Highlighting;
@@ -527,7 +528,7 @@ namespace AvaloniaEdit
         /// Dependency property for <see cref="SearchResultsBrush"/>.
         /// </summary>
         public static readonly StyledProperty<IBrush> SearchResultsBrushProperty =
-            AvaloniaProperty.Register<TextEditor, IBrush>(nameof(SearchResultsBrush), new SolidColorBrush(Color.FromRgb(81, 92, 106)));
+            AvaloniaProperty.Register<TextEditor, IBrush>(nameof(SearchResultsBrush), new ImmutableSolidColorBrush(Color.FromRgb(81, 92, 106)));
 
         /// <summary>
         /// Gets/sets the Brush used for marking search results in the TextView.
