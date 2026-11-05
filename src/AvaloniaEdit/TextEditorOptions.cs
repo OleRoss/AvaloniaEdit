@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
 using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Rendering;
 using AvaloniaEdit.Utils;
 
 namespace AvaloniaEdit
@@ -663,6 +664,29 @@ namespace AvaloniaEdit
                 }
             }
         } = CompletionAcceptAction.PointerPressed;
+
+        /// <summary>
+        /// Gets/Sets how many characters of a line are shown and can be edited.
+        /// The rest of a longer line is collapsed into "...", edits there are refused, and
+        /// TextMate doesn't highlight the line, so that very long lines don't stall the UI.
+        /// Use <see cref="int.MaxValue"/> to never collapse lines.
+        /// </summary>
+        /// <remarks>The default value is <see cref="VisualLine.LENGTH_LIMIT"/>.</remarks>
+        [DefaultValue(VisualLine.LENGTH_LIMIT)]
+        public virtual int LongLineLimit
+        {
+            get { return field; }
+            set
+            {
+                if (value < 1)
+                    throw new ArgumentOutOfRangeException(nameof(value), value, "value must be positive");
+                if (field != value)
+                {
+                    field = value;
+                    OnPropertyChanged(nameof(LongLineLimit));
+                }
+            }
+        } = VisualLine.LENGTH_LIMIT;
 
         // The default LineHeightFactor matches the line height in the Visual Studio text editor.
         private const double DefaultLineHeightFactor = 1.16;

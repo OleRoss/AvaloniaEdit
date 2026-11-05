@@ -285,7 +285,7 @@ namespace AvaloniaEdit.TextMate
                     return;
 
                 // for long lines, do not tokenize and colorize for performance reasons
-                if (line.Length > VisualLine.LENGTH_LIMIT)
+                if (line.Length > _textView.Options.LongLineLimit)
                     return;
 
                 int lineNumber = line.LineNumber;

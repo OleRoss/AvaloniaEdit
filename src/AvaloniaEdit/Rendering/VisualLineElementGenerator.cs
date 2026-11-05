@@ -52,7 +52,8 @@ namespace AvaloniaEdit.Rendering
 		internal int CachedInterest;
 
 		/// <summary>
-		/// Gets whether this generator still runs on lines longer than <see cref="VisualLine.LENGTH_LIMIT"/>,
+		/// Gets whether this generator still runs on lines longer than <see cref="VisualLine.LENGTH_LIMIT"/>
+		/// or <see cref="TextEditorOptions.LongLineLimit"/>,
 		/// where generators are otherwise skipped to keep such lines cheap to build.
 		/// Override this only for generators the layout depends on.
 		/// </summary>

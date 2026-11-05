@@ -175,15 +175,16 @@ namespace AvaloniaEdit.Rendering
             var currentLineEnd = offset + lineLength;
             LastDocumentLine = FirstDocumentLine;
             var askInterestOffset = 0; // 0 or 1
+            var longLineLimit = TextView.Options.LongLineLimit;
 
             // for long lines, run only the generators the layout depends on, for performance reasons
-            if (lineLength > LENGTH_LIMIT)
-            {
-                // shape only the first LENGTH_LIMIT characters and collapse the remainder
-                // into a marker. Otherwise stalls the UI thread.
+            if (lineLength > LENGTH_LIMIT || lineLength > longLineLimit)
                 generators = generators.Where(g => g.RunsOnLongLines).ToList();
-                currentLineEnd = offset + LENGTH_LIMIT;
-            }
+
+            // shape only the first longLineLimit characters and collapse the remainder
+            // into a marker. Otherwise stalls the UI thread.
+            if (lineLength > longLineLimit)
+                currentLineEnd = offset + longLineLimit;
 
             while (offset + askInterestOffset <= currentLineEnd)
             {
@@ -245,7 +246,7 @@ namespace AvaloniaEdit.Rendering
                 }
             }
 
-            if (lineLength > LENGTH_LIMIT && offset < FirstDocumentLine.EndOffset)
+            if (lineLength > longLineLimit && offset < FirstDocumentLine.EndOffset)
                 AddElement(new FormattedTextElement(LENGTH_LIMIT_MARKER, FirstDocumentLine.EndOffset - offset));
         }
 
