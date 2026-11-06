@@ -986,7 +986,7 @@ namespace AvaloniaEdit.Editing
         internal bool CanInsert(int offset)
         {
             return ReadOnlySectionProvider.CanInsert(offset) &&
-                   LongLineEditProtection.CanInsert(Document, offset);
+                   LongLineEditProtection.CanInsert(Document, offset, TextView.Options.LongLineLimit);
         }
 
         internal ISegment[] GetDeletableSegments(ISegment segment)
@@ -995,7 +995,7 @@ namespace AvaloniaEdit.Editing
             if (deletableSegments == null)
                 throw new InvalidOperationException("ReadOnlySectionProvider.GetDeletableSegments returned null");
             var array = deletableSegments
-                .SelectMany(s => LongLineEditProtection.GetDeletableSegments(Document, s))
+                .SelectMany(s => LongLineEditProtection.GetDeletableSegments(Document, s, TextView.Options.LongLineLimit))
                 .ToArray();
             var lastIndex = segment.Offset;
             foreach (var t in array)
