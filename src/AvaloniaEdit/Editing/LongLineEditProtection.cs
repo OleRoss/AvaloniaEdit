@@ -16,8 +16,9 @@ namespace AvaloniaEdit.Editing
             if (document == null)
                 return true;
 
+            // only lines longer than the limit are collapsed, like in VisualLine
             DocumentLine line = document.GetLineByOffset(offset);
-            return offset - line.Offset < longLineLimit;
+            return line.Length <= longLineLimit || offset - line.Offset < longLineLimit;
         }
 
         internal static IEnumerable<ISegment> GetDeletableSegments(
