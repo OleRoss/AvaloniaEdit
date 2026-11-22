@@ -9,7 +9,8 @@ namespace AvaloniaEdit
 {
     public class RoutedCommand : ICommand
     {
-        private static IInputElement _inputElement;
+        // Held weakly, so that an element removed from the tree can be collected.
+        private static WeakReference<IInputElement> _inputElement;
 
         public string Name { get; }
         public KeyGesture Gesture { get; }
@@ -50,7 +51,12 @@ namespace AvaloniaEdit
 
         private static void GotFocusEventHandler(Interactive control, FocusChangedEventArgs args)
         {
-            _inputElement = args.Source as IInputElement;
+            _inputElement = new WeakReference<IInputElement>(args.Source as IInputElement);
+        }
+
+        private static IInputElement GetInputElement()
+        {
+            return _inputElement != null && _inputElement.TryGetTarget(out var element) ? element : null;
         }
 
         public static RoutedEvent<CanExecuteRoutedEventArgs> CanExecuteEvent { get; } = RoutedEvent.Register<CanExecuteRoutedEventArgs>(nameof(CanExecuteEvent), RoutingStrategies.Bubble, typeof(RoutedCommand));
@@ -67,7 +73,7 @@ namespace AvaloniaEdit
 
         bool ICommand.CanExecute(object parameter)
         {
-            return CanExecute(parameter, _inputElement);
+            return CanExecute(parameter, GetInputElement());
         }
 
         public static RoutedEvent<ExecutedRoutedEventArgs> ExecutedEvent { get; } = RoutedEvent.Register<ExecutedRoutedEventArgs>(nameof(ExecutedEvent), RoutingStrategies.Bubble, typeof(RoutedCommand));
@@ -82,7 +88,7 @@ namespace AvaloniaEdit
 
         void ICommand.Execute(object parameter)
         {
-            Execute(parameter, _inputElement);
+            Execute(parameter, GetInputElement());
         }
 
         // TODO
