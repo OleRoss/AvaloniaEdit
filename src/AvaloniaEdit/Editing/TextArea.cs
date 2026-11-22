@@ -442,12 +442,11 @@ namespace AvaloniaEdit.Editing
             public void Undo()
             {
                 var textArea = (TextArea)_textAreaReference.Target;
-                if (textArea != null)
+                // The positions only fit the document they were taken from.
+                if (textArea != null && textArea.Document == _document)
                 {
                     textArea.Caret.Position = _caretPosition;
-                    var selection = RecreateSelection(textArea);
-                    if (selection != null)
-                        textArea.Selection = selection;
+                    textArea.Selection = RecreateSelection(textArea);
                 }
             }
 
@@ -457,9 +456,6 @@ namespace AvaloniaEdit.Editing
                     return _otherSelection;
                 if (_isEmpty)
                     return textArea.EmptySelection;
-                // The positions only fit the document they were taken from.
-                if (textArea.Document != _document)
-                    return null;
                 return _rectangle is { } rectangle
                     ? new RectangleSelection(textArea, rectangle)
                     : new SimpleSelection(textArea, _selectionStart, _selectionEnd);

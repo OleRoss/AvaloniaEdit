@@ -94,6 +94,24 @@ namespace AvaloniaEdit.Tests.Editing
         }
 
         [AvaloniaTest]
+        public void Undo_Should_Leave_The_Caret_And_Selection_Of_Another_Document()
+        {
+            UnitTestApplication.InitializeStyles();
+            var document = new TextDocument(Text);
+            var textArea = new TextArea { Document = document };
+            textArea.Caret.Offset = document.TextLength;
+            document.Insert(document.TextLength, "!");
+
+            textArea.Document = new TextDocument("another document");
+            textArea.Selection = Selection.Create(textArea, 0, 7);
+            textArea.Caret.Offset = 7;
+            document.UndoStack.Undo();
+
+            Assert.That(textArea.Caret.Offset, Is.EqualTo(7));
+            Assert.That(textArea.Selection.GetText(), Is.EqualTo("another"));
+        }
+
+        [AvaloniaTest]
         public void Undo_Should_Work_After_The_Text_Area_Lost_Its_Document()
         {
             var document = new TextDocument(Text);
