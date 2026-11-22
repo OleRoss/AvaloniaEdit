@@ -146,6 +146,38 @@ namespace AvaloniaEdit.Editing
             EndPosition = GetEnd();
         }
 
+        /// <summary>
+        /// The state of a rectangle selection without its text area, so that an undo step can
+        /// restore the selection exactly without keeping the text area alive.
+        /// </summary>
+        internal readonly record struct Snapshot(
+            int StartLine, int EndLine, double StartXPos, double EndXPos,
+            int TopLeftOffset, int BottomRightOffset, List<SelectionSegment> Segments,
+            TextViewPosition StartPosition, TextViewPosition EndPosition);
+
+        internal Snapshot TakeSnapshot() => new Snapshot(
+            _startLine, _endLine, _startXPos, _endXPos,
+            _topLeftOffset, _bottomRightOffset, _segments,
+            StartPosition, EndPosition);
+
+        /// <summary>
+        /// Recreates a selection from <see cref="TakeSnapshot"/> in the same document.
+        /// </summary>
+        internal RectangleSelection(TextArea textArea, Snapshot snapshot)
+            : base(textArea)
+        {
+            InitDocument();
+            _startLine = snapshot.StartLine;
+            _endLine = snapshot.EndLine;
+            _startXPos = snapshot.StartXPos;
+            _endXPos = snapshot.EndXPos;
+            _topLeftOffset = snapshot.TopLeftOffset;
+            _bottomRightOffset = snapshot.BottomRightOffset;
+            _segments = snapshot.Segments;
+            StartPosition = snapshot.StartPosition;
+            EndPosition = snapshot.EndPosition;
+        }
+
         private void InitDocument()
         {
             _document = TextArea.Document;

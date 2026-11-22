@@ -401,7 +401,16 @@ namespace AvaloniaEdit.Editing
             private readonly WeakReference _textAreaReference;
 
             private readonly TextViewPosition _caretPosition;
-            private readonly Selection _selection;
+
+            // A Selection holds its text area strongly, so the built-in selections are kept as
+            // positions or a snapshot and recreated on undo. Other selection types are kept as
+            // they are.
+            private readonly TextDocument _document;
+            private readonly Selection _otherSelection;
+            private readonly bool _isEmpty;
+            private readonly RectangleSelection.Snapshot? _rectangle;
+            private readonly TextViewPosition _selectionStart;
+            private readonly TextViewPosition _selectionEnd;
 
             public RestoreCaretAndSelectionUndoAction(TextArea textArea)
             {
@@ -409,17 +418,47 @@ namespace AvaloniaEdit.Editing
                 // Just save the old caret position, no need to validate here.
                 // If we restore it, we'll validate it anyways.
                 _caretPosition = textArea.Caret.NonValidatedPosition;
-                _selection = textArea.Selection;
+                _document = textArea.Document;
+                var selection = textArea.Selection;
+                if (selection is EmptySelection)
+                {
+                    _isEmpty = true;
+                }
+                else if (selection is RectangleSelection rectangle)
+                {
+                    _rectangle = rectangle.TakeSnapshot();
+                }
+                else if (selection is SimpleSelection)
+                {
+                    _selectionStart = selection.StartPosition;
+                    _selectionEnd = selection.EndPosition;
+                }
+                else
+                {
+                    _otherSelection = selection;
+                }
             }
 
             public void Undo()
             {
                 var textArea = (TextArea)_textAreaReference.Target;
-                if (textArea != null)
+                // The positions only fit the document they were taken from.
+                if (textArea != null && textArea.Document == _document)
                 {
                     textArea.Caret.Position = _caretPosition;
-                    textArea.Selection = _selection;
+                    textArea.Selection = RecreateSelection(textArea);
                 }
+            }
+
+            private Selection RecreateSelection(TextArea textArea)
+            {
+                if (_otherSelection != null)
+                    return _otherSelection;
+                if (_isEmpty)
+                    return textArea.EmptySelection;
+                return _rectangle is { } rectangle
+                    ? new RectangleSelection(textArea, rectangle)
+                    : new SimpleSelection(textArea, _selectionStart, _selectionEnd);
             }
 
             public void Redo()
